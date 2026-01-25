@@ -27,7 +27,8 @@ List of new UI features:
 2. devkitPro (libgba)
 3. ImageMagick (for resizing artwork)
 4. Node.js (for quantizing artwork to 240 colors and arranging in tile format). All dependencies are included in the repo, no need to install packages.
-5. Make
+5. Visual Studio build tools (check C++ build tools, including the MSVC v14x debug runtime, during install): https://visualstudio.microsoft.com/downloads. This is need for the GBFS executable that is included in this repo.
+6. Make
 
 ### Project setup
 1. Add any .wav files to the wavs/ folder
@@ -42,7 +43,9 @@ You can open allnewgsm.gba in an emulator, or stick it on a flash cart.
 
 #### Can I re-order the songs in the playlist?
 
-The easiest way is to manually pass individual GSM file paths in the desired order to the GBFS executable, rather than using a glob (see GoGBFS.ps1).
+~The easiest way is to manually pass individual GSM file paths in the desired order to the GBFS executable, rather than using a glob (see GoGBFS.ps1).~
+
+Update 25 January 2026: It's been reported that the most reliable way to re-order songs is to include numerical prefixes (01, 02, etc) in the WAV filenames, generate gsmsongs.gbfs, use a HEX file editor to remove the prefixes from gsmsongs.gbfs, and then build the rest. If someone would like to make a pull request to simplify this process, I'd be happy to review and merge it!
 
 #### Can I make the album art look more retro?
 
