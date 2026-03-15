@@ -198,6 +198,11 @@ void advancePlayback(GsmPlaybackTracker *playback, GsmPlaybackInputMapping *mapp
     playback->locked = playback->locked ? 0 : 1;
   }
 
+  if (playback->locked)
+  {
+    cmd = 0;
+  }
+
   if (cmd & mapping->TOGGLE_SHUFFLE)
   {
     playback->shuffle = !playback->shuffle;
