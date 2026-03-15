@@ -82,7 +82,11 @@ node ./img2gba "art/leopard.jpeg" ./src
 
 # Step 3: Convert .wav files to .gsm at 18157 Hz using SoX two-process pipe
 # Pre-processing chain optimizes audio for the GSM codec and 8-bit GBA output:
-#   norm → compand → treble boost → lowpass → limiter → resample → encode
+#   norm → highpass → compand → lowpass → normalize → resample → encode
+# - highpass 80: remove sub-bass the GBA speaker can't reproduce (saves codec bits)
+# - compand: compress dynamic range so quiet parts survive 8-bit truncation
+# - lowpass 8500: anti-alias below the ~9 kHz Nyquist (18157/2)
+# - gain -n: final normalization to use full dynamic range
 # Modern SoX rejects nonstandard GSM sample rates, so we lie about it in the second process.
 echo ""
 echo -e "${GREEN}[3/5] Converting .wav to .gsm (18157 Hz, with pre-processing)...${NC}"
@@ -93,11 +97,12 @@ for f in wavs/*.wav; do
     wav_found=1
     name=$(basename "$f" .wav)
     echo "  $f -> gsms/${name}.gsm"
-    sox "$f" --norm -r 18157 -t s16 -c 1 - \
+    sox "$f" -r 18157 -t s16 -c 1 - \
+        norm -3 \
+        highpass 80 \
         compand 0.3,1 6:-70,-60,-20 -5 -90 0.2 \
-        treble +3 3k \
         lowpass 8500 \
-        compand 0,0.05 6:-0.1,-0.1 \
+        gain -n \
         | sox -t s16 -r 8000 -c 1 - "gsms/${name}.gsm"
 done
 if [ "$wav_found" -eq 0 ]; then
