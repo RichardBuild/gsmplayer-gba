@@ -81,9 +81,11 @@ echo "  art/leopard.jpeg -> src/leopard.pal.c + src/leopard.raw.c"
 node ./img2gba "art/leopard.jpeg" ./src
 
 # Step 3: Convert .wav files to .gsm at 18157 Hz using SoX two-process pipe
-# (modern SoX rejects nonstandard GSM sample rates, so we lie about it)
+# Pre-processing chain optimizes audio for the GSM codec and 8-bit GBA output:
+#   norm → compand → treble boost → lowpass → limiter → resample → encode
+# Modern SoX rejects nonstandard GSM sample rates, so we lie about it in the second process.
 echo ""
-echo -e "${GREEN}[3/5] Converting .wav to .gsm (18157 Hz)...${NC}"
+echo -e "${GREEN}[3/5] Converting .wav to .gsm (18157 Hz, with pre-processing)...${NC}"
 mkdir -p gsms
 wav_found=0
 for f in wavs/*.wav; do
@@ -91,7 +93,12 @@ for f in wavs/*.wav; do
     wav_found=1
     name=$(basename "$f" .wav)
     echo "  $f -> gsms/${name}.gsm"
-    sox "$f" -r 18157 -t s16 -c 1 - | sox -t s16 -r 8000 -c 1 - "gsms/${name}.gsm"
+    sox "$f" --norm -r 18157 -t s16 -c 1 - \
+        compand 0.3,1 6:-70,-60,-20 -5 -90 0.2 \
+        treble +3 3k \
+        lowpass 8500 \
+        compand 0,0.05 6:-0.1,-0.1 \
+        | sox -t s16 -r 8000 -c 1 - "gsms/${name}.gsm"
 done
 if [ "$wav_found" -eq 0 ]; then
     echo -e "${RED}No .wav files found in wavs/ folder. Add your audio files there.${NC}"
