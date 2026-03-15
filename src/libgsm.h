@@ -13,6 +13,11 @@ typedef struct GsmPlaybackTracker
   int last_sample;
   int playing;
   int locked;
+  int shuffle;
+  unsigned int shuffle_order[256];
+  unsigned int shuffle_pos;
+  unsigned int shuffle_len;
+  unsigned int frame_count;
 
   // these vars should be initialized together
   char curr_song_name[65];
@@ -30,6 +35,7 @@ typedef struct GsmPlaybackInputMapping
   int SEEK_BACK;
   int SEEK_FORWARD;
   int TOGGLE_LOCK;
+  int TOGGLE_SHUFFLE;
 } GsmPlaybackInputMapping;
 
 extern struct GsmPlaybackInputMapping DEFAULT_PLAYBACK_INPUT_MAPPING;

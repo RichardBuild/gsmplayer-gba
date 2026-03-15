@@ -55,12 +55,13 @@ void gsm_init(gsm r)
 }
 
 struct GsmPlaybackInputMapping DEFAULT_PLAYBACK_INPUT_MAPPING = {
-    .TOGGLE_PLAY_PAUSE = KEY_A | KEY_B | KEY_START,
+    .TOGGLE_PLAY_PAUSE = KEY_A | KEY_B,
     .PREV_TRACK = KEY_LEFT,
     .NEXT_TRACK = KEY_RIGHT,
     .SEEK_BACK = KEY_L,
     .SEEK_FORWARD = KEY_R,
     .TOGGLE_LOCK = KEY_SELECT,
+    .TOGGLE_SHUFFLE = KEY_START,
 };
 
 struct gsm_state decoder;
@@ -134,6 +135,8 @@ int initPlayback(GsmPlaybackTracker *playback)
   playback->last_sample = 0;
   playback->playing = 1;
   playback->locked = 0;
+  playback->shuffle = 0;
+  playback->frame_count = 0;
   return 0;
 }
 
@@ -142,6 +145,40 @@ signed char double_buffers[2][608] __attribute__((aligned(4)));
 
 #define CMD_START_SONG 0x0400
 
+static void generate_shuffle_order(GsmPlaybackTracker *playback, int mark_current_played)
+{
+  size_t n = count_gsm_objs(fs);
+  if (n > 256) n = 256;
+  playback->shuffle_len = n;
+  for (unsigned int i = 0; i < n; i++)
+    playback->shuffle_order[i] = i;
+  for (unsigned int i = n - 1; i > 0; i--)
+  {
+    unsigned int j = rand() % (i + 1);
+    unsigned int tmp = playback->shuffle_order[i];
+    playback->shuffle_order[i] = playback->shuffle_order[j];
+    playback->shuffle_order[j] = tmp;
+  }
+  if (mark_current_played && n > 1)
+  {
+    // Put the current song at position 0 and skip past it
+    for (unsigned int i = 0; i < n; i++)
+    {
+      if (playback->shuffle_order[i] == playback->cur_song)
+      {
+        playback->shuffle_order[i] = playback->shuffle_order[0];
+        playback->shuffle_order[0] = playback->cur_song;
+        break;
+      }
+    }
+    playback->shuffle_pos = 1;
+  }
+  else
+  {
+    playback->shuffle_pos = 0;
+  }
+}
+
 void writeFromPlaybackBuffer(GsmPlaybackTracker *playback) {
   dsound_switch_buffers(double_buffers[playback->cur_buffer]);
   playback->cur_buffer = !playback->cur_buffer;
@@ -149,6 +186,7 @@ void writeFromPlaybackBuffer(GsmPlaybackTracker *playback) {
 
 void advancePlayback(GsmPlaybackTracker *playback, GsmPlaybackInputMapping *mapping)
 {
+  playback->frame_count++;
   unsigned short j = (REG_KEYINPUT & 0x3ff) ^ 0x3ff;
   unsigned short cmd = j & (~playback->last_joy | mapping->SEEK_BACK | mapping->SEEK_FORWARD);
   signed char *dst_pos = double_buffers[playback->cur_buffer];
@@ -158,6 +196,16 @@ void advancePlayback(GsmPlaybackTracker *playback, GsmPlaybackInputMapping *mapp
   if (cmd & mapping->TOGGLE_LOCK)
   {
     playback->locked = playback->locked ? 0 : 1;
+  }
+
+  if (cmd & mapping->TOGGLE_SHUFFLE)
+  {
+    playback->shuffle = !playback->shuffle;
+    if (playback->shuffle)
+    {
+      srand(playback->frame_count);
+      generate_shuffle_order(playback, 1);
+    }
   }
 
   if (playback->locked)
@@ -193,10 +241,22 @@ void advancePlayback(GsmPlaybackTracker *playback, GsmPlaybackInputMapping *mapp
 
   if (cmd & mapping->NEXT_TRACK)
   {
-    playback->cur_song++;
-    if (playback->cur_song >= count_gsm_objs(fs))
+    if (playback->shuffle && playback->shuffle_len > 0)
     {
-      playback->cur_song = 0;
+      playback->cur_song = playback->shuffle_order[playback->shuffle_pos];
+      playback->shuffle_pos++;
+      if (playback->shuffle_pos >= playback->shuffle_len)
+      {
+        srand(playback->frame_count);
+        generate_shuffle_order(playback, 0);
+      }
+    }
+    else
+    {
+      size_t n_songs = count_gsm_objs(fs);
+      playback->cur_song++;
+      if (playback->cur_song >= n_songs)
+        playback->cur_song = 0;
     }
     cmd |= CMD_START_SONG;
   }

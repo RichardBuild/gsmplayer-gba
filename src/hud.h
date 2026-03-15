@@ -7,7 +7,6 @@
 #include "libgsm.h"
 
 void initHUD();
-void showGSMPlayerCopyrightInfo();
 void hud_show_instructions();
 void drawHUDFrame(GsmPlaybackTracker* playback);
 

@@ -7,7 +7,6 @@
 #include <stdint.h>
 #include <string.h>  // for memset
 
-#include "album_info.h"
 #include "hud.h"
 
 extern const char _x16Tiles[2048];  // font
@@ -73,16 +72,6 @@ void hud_init(void)
   REG_BG1CNT = SCREEN_BASE(31) | CHAR_BASE(0);
 }
 
-void showGSMPlayerCopyrightInfo() {
-  hud_wline(1, artistName);
-  hud_wline(2, albumName);
-  hud_wline(3, "");
-  hud_wline(4, "GSM Player for GBA");
-  hud_wline(5, "(C) 2004,2019 Damian Yerrick");
-  hud_wline(6, "and Toast contributors");
-  hud_wline(7, "(See TOAST-COPYRIGHT.txt)");
-  hud_wline(8, "");
-}
 
 /* base 10, 10, 6, 10 conversion */
 static unsigned int hud_bcd[] =
@@ -123,7 +112,7 @@ void hud_show_instructions() {
   hud_wline(2, "                  Seek: L/R\n");
   hud_wline(3, "                  Skip: DPad\n");
   hud_wline(4, "                  Lock: Slct\n");
-  hud_wline(5, "                  Info: Strt\n");
+  hud_wline(5, "                  Shfl: Strt\n");
   hud_wline(6, "");
   hud_wline(7, "");
 }
@@ -208,7 +197,7 @@ void hud_frame(GsmPlaybackTracker* playback, unsigned int t)
   }
   line[20] = ' ';
   line[21] = playback->locked ? 12 : 13;
-  line[22] = ' ';
+  line[22] = playback->shuffle ? 'S' : ' ';
   line[23] = time_bcd[0];
   line[24] = time_bcd[1];
   line[25] = ':';

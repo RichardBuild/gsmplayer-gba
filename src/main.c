@@ -15,9 +15,8 @@ struct GsmPlaybackInputMapping InputMapping = {
     .SEEK_BACK = KEY_L,
     .SEEK_FORWARD = KEY_R,
     .TOGGLE_LOCK = KEY_SELECT,
+    .TOGGLE_SHUFFLE = KEY_START,
 };
-
-int TOGGLE_INFO = KEY_START;
 
 int main(void)
 {
@@ -66,16 +65,7 @@ int main(void)
     VBlankIntrWait();
     writeFromPlaybackBuffer(&playback);
     drawHUDFrame(&playback);
-    if (!(REG_KEYINPUT & TOGGLE_INFO))
-    {
-      REG_DISPCNT &= ~(OBJ_ON | BG0_ON);
-      showGSMPlayerCopyrightInfo();
-    }
-    else
-    {
-      REG_DISPCNT |= OBJ_ON | BG0_ON;
-      hud_show_instructions();
-      drawReelAnimation(&playback);
-    }
+    hud_show_instructions();
+    drawReelAnimation(&playback);
   }
 }
