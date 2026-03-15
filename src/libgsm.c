@@ -208,11 +208,6 @@ void advancePlayback(GsmPlaybackTracker *playback, GsmPlaybackInputMapping *mapp
     }
   }
 
-  if (playback->locked)
-  {
-    cmd = 0;
-  }
-
   if (cmd & mapping->TOGGLE_PLAY_PAUSE)
   {
     playback->playing = playback->playing ? 0 : 1;
@@ -248,7 +243,7 @@ void advancePlayback(GsmPlaybackTracker *playback, GsmPlaybackInputMapping *mapp
       if (playback->shuffle_pos >= playback->shuffle_len)
       {
         srand(playback->frame_count);
-        generate_shuffle_order(playback, 0);
+        generate_shuffle_order(playback, 1);
       }
     }
     else
@@ -263,13 +258,20 @@ void advancePlayback(GsmPlaybackTracker *playback, GsmPlaybackInputMapping *mapp
 
   if (cmd & mapping->PREV_TRACK)
   {
-    if (playback->cur_song == 0)
+    if (playback->shuffle && playback->shuffle_len > 0)
     {
-      playback->cur_song = count_gsm_objs(fs) - 1;
+      if (playback->shuffle_pos >= 2)
+      {
+        playback->shuffle_pos--;
+        playback->cur_song = playback->shuffle_order[playback->shuffle_pos - 1];
+      }
     }
     else
     {
-      playback->cur_song--;
+      if (playback->cur_song == 0)
+        playback->cur_song = count_gsm_objs(fs) - 1;
+      else
+        playback->cur_song--;
     }
     cmd |= CMD_START_SONG;
   }
