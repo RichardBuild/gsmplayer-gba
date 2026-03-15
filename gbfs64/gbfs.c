@@ -56,7 +56,7 @@ reformatted for consistency
 #include <errno.h>
 
 typedef unsigned short u16;
-typedef unsigned long u32;  /* this needs to be changed on 64-bit systems */
+typedef unsigned int u32;
 
 #include "./gbfs.h"
 
@@ -70,14 +70,14 @@ GBFS_FILE header;
 GBFS_ENTRY *entries;
 
 // https://stackoverflow.com/a/66625367
-const char* basename(const char* _buffer)
+static const char* get_basename(const char* _buffer)
 {
     char c;
     int  i;
     for (i = 0; ;++i) {
         c = *((char*)_buffer+i);
         if (c == '\\' || c == '/')
-            return basename((char*)_buffer + i + 1);
+            return get_basename((char*)_buffer + i + 1);
         if (c == '\0')
             return _buffer;
     }
@@ -198,7 +198,7 @@ int main(int argc, char **argv) {
 
         /* copy name */
         strncpy(	entries[n_entries].name,
-                basename(argv[arg]),
+                get_basename(argv[arg]),
                 sizeof(entries[n_entries].name));
 
         /* diagnostic */
