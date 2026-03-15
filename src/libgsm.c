@@ -243,13 +243,13 @@ void advancePlayback(GsmPlaybackTracker *playback, GsmPlaybackInputMapping *mapp
   {
     if (playback->shuffle && playback->shuffle_len > 0)
     {
-      playback->cur_song = playback->shuffle_order[playback->shuffle_pos];
-      playback->shuffle_pos++;
       if (playback->shuffle_pos >= playback->shuffle_len)
       {
         srand(playback->frame_count);
         generate_shuffle_order(playback, 1);
       }
+      playback->cur_song = playback->shuffle_order[playback->shuffle_pos];
+      playback->shuffle_pos++;
     }
     else
     {
