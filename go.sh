@@ -58,29 +58,38 @@ fi
 
 echo -e "${GREEN}All dependencies found.${NC}"
 
-# Step 1: Resize the first .jpg in art/ to 128x128 as album.jpeg
-echo ""
-echo -e "${GREEN}[1/5] Resizing artwork...${NC}"
-art_file=""
+# Step 1: Find fallback art (first .jpg in art/)
+fallback_art=""
 for f in art/*.jpg; do
     [ -f "$f" ] || continue
-    art_file="$f"
+    fallback_art="$f"
     break
 done
-if [ -z "$art_file" ]; then
+if [ -z "$fallback_art" ]; then
     echo -e "${RED}No .jpg files found in art/ folder. Add your album art there.${NC}"
     exit 1
 fi
-echo "  $art_file -> art/leopard.jpeg"
-magick "$art_file" -resize 128x128! "art/leopard.jpeg"
 
-# Step 2: Convert artwork to GBA tile format (generates src/leopard.pal.c + src/leopard.raw.c)
+# Step 2: Convert per-track artwork to GBA tile binary (.art files)
+# Each .wav in wavs/ is matched to art/<same name>.jpg; falls back to first .jpg found.
 echo ""
-echo -e "${GREEN}[2/5] Converting artwork to GBA tiles...${NC}"
-echo "  art/leopard.jpeg -> src/leopard.pal.c + src/leopard.raw.c"
-node ./img2gba "art/leopard.jpeg" ./src
+echo -e "${GREEN}[1/4] Converting per-track artwork...${NC}"
+mkdir -p gsms
+for f in wavs/*.wav; do
+    [ -f "$f" ] || continue
+    name=$(basename "$f" .wav)
+    art_src="art/${name}.jpg"
+    if [ ! -f "$art_src" ]; then
+        art_src="$fallback_art"
+    fi
+    resized="gsms/${name}.jpeg"
+    echo "  $art_src -> gsms/${name}.art"
+    magick "$art_src" -resize 128x128! "$resized"
+    node ./img2gba "$resized" ./gsms --binary
+    rm "$resized"
+done
 
-# Step 3: Convert .wav files to .gsm at 18157 Hz using SoX two-process pipe
+# Step 2: Convert .wav files to .gsm at 18157 Hz using SoX two-process pipe
 # Pre-processing chain optimizes audio for the GSM codec and 8-bit GBA output:
 #   norm → highpass → compand → lowpass → normalize → resample → encode
 # - highpass 80: remove sub-bass the GBA speaker can't reproduce (saves codec bits)
@@ -89,7 +98,7 @@ node ./img2gba "art/leopard.jpeg" ./src
 # - gain -n: final normalization to use full dynamic range
 # Modern SoX rejects nonstandard GSM sample rates, so we lie about it in the second process.
 echo ""
-echo -e "${GREEN}[3/5] Converting .wav to .gsm (18157 Hz, with pre-processing)...${NC}"
+echo -e "${GREEN}[2/4] Converting .wav to .gsm (18157 Hz, with pre-processing)...${NC}"
 mkdir -p gsms
 wav_found=0
 for f in wavs/*.wav; do
@@ -98,7 +107,7 @@ for f in wavs/*.wav; do
     name=$(basename "$f" .wav)
     echo "  $f -> gsms/${name}.gsm"
     sox "$f" -r 18157 -t s16 -c 1 - \
-        norm -3 \
+        norm -18 \
         highpass 80 \
         compand 0.3,1 6:-70,-60,-20 -5 -90 0.2 \
         lowpass 8500 \
@@ -110,18 +119,18 @@ if [ "$wav_found" -eq 0 ]; then
     exit 1
 fi
 
-# Step 4: Build gbfs tool (if needed) and pack .gsm files into archive
+# Step 3: Build gbfs tool (if needed) and pack .gsm and .art files into archive
 echo ""
-echo -e "${GREEN}[4/5] Packing .gsm files into GBFS archive...${NC}"
+echo -e "${GREEN}[3/4] Packing .gsm and .art files into GBFS archive...${NC}"
 if [ ! -f gbfs64/gbfs ]; then
     echo "  Building gbfs tool from source..."
     cc -o gbfs64/gbfs gbfs64/gbfs.c -Wall
 fi
-gbfs64/gbfs gsmsongs.gbfs gsms/*.gsm
+gbfs64/gbfs gsmsongs.gbfs gsms/*.gsm gsms/*.art
 
-# Step 5: Build GBA ROM
+# Step 4: Build GBA ROM
 echo ""
-echo -e "${GREEN}[5/5] Building ROM...${NC}"
+echo -e "${GREEN}[4/4] Building ROM...${NC}"
 make -j"$(sysctl -n hw.ncpu)"
 
 echo ""

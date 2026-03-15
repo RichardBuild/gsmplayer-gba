@@ -14,6 +14,7 @@
 #include "private.h" /* for sizeof(struct gsm_state) */
 #include "gbfs.h"
 #include "libgsm.h"
+#include "art.h"
 
 // gsmplay.c ////////////////////////////////////////////////////////
 
@@ -66,6 +67,54 @@ struct gsm_state decoder;
 const GBFS_FILE *fs;
 const unsigned char *src;
 uint32_t src_len;
+
+#define ART_FILE_SIZE 16896
+
+static int name_ends_with(const char *name, const char *suffix)
+{
+  size_t nlen = strlen(name);
+  size_t slen = strlen(suffix);
+  if (nlen < slen) return 0;
+  return memcmp(name + nlen - slen, suffix, slen) == 0;
+}
+
+static size_t count_gsm_objs(const GBFS_FILE *file)
+{
+  size_t total = gbfs_count_objs(file);
+  size_t count = 0;
+  for (size_t i = 0; i < total; i++)
+  {
+    char name[65];
+    gbfs_get_nth_obj(file, i, name, NULL);
+    if (name_ends_with(name, ".gsm"))
+      count++;
+  }
+  return count;
+}
+
+static const void *get_nth_gsm(const GBFS_FILE *file, size_t n,
+                                char *name, u32 *len)
+{
+  size_t total = gbfs_count_objs(file);
+  size_t gsm_idx = 0;
+  for (size_t i = 0; i < total; i++)
+  {
+    char entry_name[65];
+    u32 entry_len;
+    const void *data = gbfs_get_nth_obj(file, i, entry_name, &entry_len);
+    if (name_ends_with(entry_name, ".gsm"))
+    {
+      if (gsm_idx == n)
+      {
+        if (name) strncpy(name, entry_name, 65);
+        if (len) *len = entry_len;
+        return data;
+      }
+      gsm_idx++;
+    }
+  }
+  return NULL;
+}
 
 int initPlayback(GsmPlaybackTracker *playback)
 {
@@ -145,7 +194,7 @@ void advancePlayback(GsmPlaybackTracker *playback, GsmPlaybackInputMapping *mapp
   if (cmd & mapping->NEXT_TRACK)
   {
     playback->cur_song++;
-    if (playback->cur_song >= gbfs_count_objs(fs))
+    if (playback->cur_song >= count_gsm_objs(fs))
     {
       playback->cur_song = 0;
     }
@@ -156,7 +205,7 @@ void advancePlayback(GsmPlaybackTracker *playback, GsmPlaybackInputMapping *mapp
   {
     if (playback->cur_song == 0)
     {
-      playback->cur_song = gbfs_count_objs(fs) - 1;
+      playback->cur_song = count_gsm_objs(fs) - 1;
     }
     else
     {
@@ -168,7 +217,7 @@ void advancePlayback(GsmPlaybackTracker *playback, GsmPlaybackInputMapping *mapp
   if (cmd & CMD_START_SONG)
   {
     gsm_init(&decoder);
-    src = gbfs_get_nth_obj(fs, playback->cur_song, playback->curr_song_name, &src_len);
+    src = get_nth_gsm(fs, playback->cur_song, playback->curr_song_name, &src_len);
     playback->src_start_pos = src;
     {
       unsigned int song_name_len = 0;
@@ -182,6 +231,23 @@ void advancePlayback(GsmPlaybackTracker *playback, GsmPlaybackInputMapping *mapp
       playback->frames_until_marquee_update = 90;
       playback->reel_rotation_theta = 0;
     }
+
+    // Look up per-track album art
+    {
+      char art_name[65];
+      strncpy(art_name, playback->curr_song_name, 60);
+      art_name[60] = '\0';
+      char *dot = strrchr(art_name, '.');
+      if (dot)
+        strcpy(dot, ".art");
+      else
+        strncat(art_name, ".art", 4);
+      u32 art_len;
+      const void *art_data = gbfs_get_obj(fs, art_name, &art_len);
+      if (art_data && art_len >= ART_FILE_SIZE)
+        swapArt(art_data);
+    }
+
     // If reached by seek, go near end of the track.
     // Otherwise, go to the start.
     if (cmd & mapping->SEEK_BACK)

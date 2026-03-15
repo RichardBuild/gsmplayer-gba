@@ -9,10 +9,10 @@
 // adapted from tonc
 #define REG_BG_AFFINE		((BGAffineDest*)(REG_BASE+0x0000))	//!< Bg affine array
 
-extern const unsigned short leopard_Palette[256];
-extern const unsigned char leopard_Bitmap[16384];
-
 #define SHARED_CHAR_BASE 1
+#define PALETTE_RESERVED_ENTRIES 16
+#define PALETTE_TOTAL_BYTES 512
+#define BITMAP_TOTAL_BYTES 16384
 
 void setupArtBackdrop() {
     REG_BG2CNT = SCREEN_BASE(30)
@@ -89,18 +89,27 @@ void setupArtForeground() {
     }
 }
 
+void swapArt(const void *art_data)
+{
+    const u16 *palette = (const u16 *)art_data;
+    const u8 *bitmap = (const u8 *)art_data + PALETTE_TOTAL_BYTES;
+
+    while (REG_DMA3CNT & DMA_ENABLE)
+        VBlankIntrWait();
+    dmaCopy(
+        palette + PALETTE_RESERVED_ENTRIES,
+        BG_PALETTE + PALETTE_RESERVED_ENTRIES,
+        PALETTE_TOTAL_BYTES - PALETTE_RESERVED_ENTRIES * 2
+    );
+    while (REG_DMA3CNT & DMA_ENABLE)
+        VBlankIntrWait();
+    dmaCopy(bitmap, PATRAM8(SHARED_CHAR_BASE, 0), BITMAP_TOTAL_BYTES);
+    while (REG_DMA3CNT & DMA_ENABLE)
+        VBlankIntrWait();
+}
+
 void initArt()
 {
     setupArtBackdrop();
     setupArtForeground();
-
-    // Copy bg palette and tile data into the appropriate locations
-    while (REG_DMA3CNT & DMA_ENABLE)
-        VBlankIntrWait();
-    dmaCopy(leopard_Palette, BG_PALETTE, sizeof(leopard_Palette));
-    while (REG_DMA3CNT & DMA_ENABLE)
-        VBlankIntrWait();
-    dmaCopy(leopard_Bitmap, PATRAM8(SHARED_CHAR_BASE, 0), sizeof(leopard_Bitmap));
-    while (REG_DMA3CNT & DMA_ENABLE)
-        VBlankIntrWait();
 }
