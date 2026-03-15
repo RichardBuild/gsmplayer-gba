@@ -4,7 +4,17 @@ set -euo pipefail
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m'
+
+rebuild_all=0
+for arg in "$@"; do
+    case "$arg" in
+        --rebuild-all|-a)
+            rebuild_all=1
+            ;;
+    esac
+done
 
 missing=()
 
@@ -57,6 +67,9 @@ if [ ${#missing[@]} -gt 0 ]; then
 fi
 
 echo -e "${GREEN}All dependencies found.${NC}"
+if [ "$rebuild_all" -eq 1 ]; then
+    echo -e "${CYAN}--rebuild-all: reconverting all songs${NC}"
+fi
 
 # Step 1: Find fallback art (first .jpg in art/)
 fallback_art=""
@@ -78,6 +91,10 @@ mkdir -p gsms
 for f in wavs/*.wav; do
     [ -f "$f" ] || continue
     name=$(basename "$f" .wav)
+    if [ "$rebuild_all" -eq 0 ] && [ -f "gsms/${name}.art" ]; then
+        echo -e "  ${CYAN}[skip]${NC} gsms/${name}.art already exists"
+        continue
+    fi
     art_src="art/${name}.jpg"
     if [ ! -f "$art_src" ]; then
         art_src="$fallback_art"
@@ -105,6 +122,10 @@ for f in wavs/*.wav; do
     [ -f "$f" ] || continue
     wav_found=1
     name=$(basename "$f" .wav)
+    if [ "$rebuild_all" -eq 0 ] && [ -f "gsms/${name}.gsm" ]; then
+        echo -e "  ${CYAN}[skip]${NC} gsms/${name}.gsm already exists"
+        continue
+    fi
     echo "  $f -> gsms/${name}.gsm"
     sox "$f" -r 18157 -t s16 -c 1 - \
         norm -18 \
